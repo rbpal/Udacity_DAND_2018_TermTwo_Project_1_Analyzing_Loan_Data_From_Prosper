@@ -1,0 +1,1227 @@
+---
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+Analyzing Loan Data from Prosper by Rajendra B Pal
+========================================================
+
+# Introduction
+This report explores the Prosper Loan Dataset. Prosper is an online marketplace lending(also called peer-to-peer lending) that connects borrowers and investors.  Investors can explore credit-worthy borrowers by FICO score, ratings, and terms and then invest in unsecured loans( or a part of the loan) and earn returns. 
+
+
+# Why Analyse Prosper Dataset
+
+I am a financial market enthusiast and follow it daily basis. I believe the financial markets are the reflection of human psychology. The year 2008 financial crisis was due to subprime mortgage loans, derivatives, too much leverage, and housing bubble that caused a global crisis and lead to the demise of financial firms, required trillion-dollar taxpayer bailouts, and caused a recession that matched the Great Depression in its magnitude. 
+
+Prosper loan is a peer-to-peer lending/loan marketplace in the United States. Prosper loan dataset contains records from year 2006 to 2014. I am trying to understand why debt delinquency happens and what can be done to reduce it. Is borrower   financial situation(features like AmountDelinquent, LoanCurrentDaysDelinquent, Occupation, EmploymentStatus, CreditScoreRangeLower, CreditScoreRangeUpper etc. ) or lenders business model  (features  like  ProsperRating..Alpha. , IncomeVerifiable, BorrowerAPR etc )  has role to play.
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+# Load packages  
+
+
+library(ggplot2)
+library(dplyr)
+library(gridExtra)
+library(tidyr)
+library(GGally)
+library(forcats)
+library(reshape2)
+library(RColorBrewer)
+library(memisc)
+library(scales)
+library(lubridate)
+
+```
+
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, Load_the_Data_home}
+# Load the Data
+
+df <- read.csv('prosperLoanData.csv')
+
+```
+
+
+```{r message=FALSE, warning=FALSE, cache=TRUE, echo=FALSE}
+
+# ordering the quaters
+level_order <- factor(df$LoanOriginationQuarter, level = c("Q1 2006","Q2 2006","Q3 2006","Q4 2006","Q1 2007","Q2 2007","Q3 2007","Q4 2007","Q1 2008","Q2 2008","Q3 2008","Q4 2008","Q1 2009","Q2 2009","Q3 2009","Q4 2009","Q1 2010","Q2 2010","Q3 2010","Q4 2010","Q1 2011","Q2 2011","Q3 2011","Q4 2011","Q1 2012","Q2 2012","Q3 2012","Q4 2012","Q1 2013","Q2 2013","Q3 2013","Q4 2013","Q1 2014","Q2 2014","Q3 2014","Q4 2014"))
+
+ListingCategory_name <- factor(df$ListingCategory..numeric., labels = c("Not Available","Debt Consolidation","Home Improvement","Business","Personal Loan","Student Use","Auto","other","Baby&Adoption","Boat","Cosmetic Procedure","Engagement Ring","Green Loans","Household Expenses","Large Purchases","Medical/Dental","Motorcycle","RV","Taxes","Vacation","Wedding Loans"))
+ 
+order_Prosper_rating <- factor(df$ProsperRating..Alpha., levels = c("AA","A","B","C","D","E","HR",""))
+
+
+
+my_df_01 <- df[!(is.na(df$ProsperRating..Alpha.) | df$ProsperRating..Alpha.==""), ]
+my_df_01 <- dplyr::select(my_df_01,
+                       Investors,
+                       LoanOriginalAmount,
+                       ProsperRating..Alpha.,
+                       AmountDelinquent,
+                       BorrowerAPR,
+                       LoanCurrentDaysDelinquent,
+                       Term)
+
+order_Prosper_rating_reg <- factor(my_df_01$ProsperRating..Alpha.,
+                                   levels = c("AA","A","B","C","D","E","HR"))
+
+
+```
+
+# Univariate Plots Section
+==========================
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, Univariate_Plots_LoanOriginalAmount}
+summary(df$LoanOriginalAmount)
+
+# LoanOriginalAmount
+pl.01 <- ggplot(data = df,
+                aes(x = LoanOriginalAmount))
+
+pl.02 <- pl.01 + geom_histogram(binwidth = 1000,
+                                color = 'black',
+                                fill = '#099DD9')
+
+pl.03 <- pl.02 + labs(x = "Loan Original Amount",
+                      y = "Count") 
+
+pl.04 <- pl.03 + theme_update(plot.title = element_text(hjust = 1)) +
+  ggtitle("Prosper Loan Data | Loan Original Amount") 
+
+pl.04
+
+```
+
+From the summary details, the average loan is $6,500.  Majority of the loans are less than 10,000 as shown in the positively skewed plot thus mean($8,337) more than the median($6,500). 
+
+Next obvious question to ask what kind of services borrowers are buying from loan money.  
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, fig.width=12, Univariate_Plots_ListingCategory_name}
+
+ListingCategory_name <- factor(df$ListingCategory..numeric., labels = c("Not Available","Debt Consolidation","Home Improvement","Business","Personal Loan","Student Use","Auto","other","Baby&Adoption","Boat","Cosmetic Procedure","Engagement Ring","Green Loans","Household Expenses","Large Purchases","Medical/Dental","Motorcycle","RV","Taxes","Vacation","Wedding Loans"))
+
+df_new <- transform(df,ListingCategory..name = ListingCategory_name )
+#head(df_new)
+
+
+pl.01 <- ggplot(data = df_new,
+                aes(x = ListingCategory..name))
+
+pl.02 <- pl.01 + geom_histogram(stat = "count",
+                                binwidth = 1,
+                                color = 'black',
+                                fill = '#099DD9') 
+
+pl.03 <- pl.02 + labs(x = "List of items for Loan taken",
+                      y = "Count") 
+
+pl.04 <- pl.03 + theme_update(plot.title = element_text(hjust = 1)) +
+  ggtitle("Prosper Loan Data | Listing Category")
+
+pl.05 <- pl.04 + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+ 
+pl.05
+
+```
+
+Most of the borrowers are using the loan for debt consolidation which could be credit card debt and home improvement. 
+
+
+Next looking into employment status of borrower.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, fig.width=12, Univariate_Plots_EmploymentStatus}
+
+pl.01 <- ggplot(data = df,
+                aes(x = EmploymentStatus))
+
+pl.02 <- pl.01 + geom_histogram(stat = "count",
+                                color = 'black',
+                                fill = '#099DD9')
+
+pl.03 <- pl.02 + labs(x = "List of items for Loan taken",
+                      y = "Count") 
+
+pl.04 <- pl.03 + theme_update(plot.title = element_text(hjust = 1)) +
+  ggtitle("Prosper Loan Data | Listing Category")
+
+pl.05 <- pl.04 + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+pl.05
+
+
+```
+
+Most of loan takers are "Employed", "Full-time" and "self-employed" - which suggest that there is high probabity that loan will be paid in full.
+
+Next looking into Income Range of borrower.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, fig.width=12, Univariate_Plots_IncomeRange}
+pl.01 <- ggplot(data = df,
+                aes(x = IncomeRange))
+pl.02 <- pl.01 + geom_histogram(stat = "count",
+                                color = 'black',
+                                fill = '#099DD9')
+pl.03 <- pl.02 + labs(x = "Borrowers' income range",
+                      y = "Count") 
+
+pl.04 <- pl.03 + theme_update(plot.title = element_text(hjust = 1)) +
+  ggtitle("Prosper Loan Data | Borrowers' income range")
+
+pl.05 <- pl.04 + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+pl.05
+
+```
+
+Most of the borrower's income is in the range of $ 25K - $ 75K.
+
+Next looking into annual percentage rate, borrower's APR(interest rate plus other costs ) for the loan.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, fig.width=12, Univariate_Plots_BorrowerAPR}
+
+summary(df$BorrowerAPR)
+
+pl.01 <- ggplot(data = df,
+                aes(x = BorrowerAPR))
+
+pl.02 <- pl.01 + geom_histogram(color = 'black',
+                                fill = '#099DD9')
+                                
+
+pl.03 <- pl.02 + labs(x = "Borrower APR",
+                      y = "Count") 
+
+pl.04 <- pl.03 + theme_update(plot.title = element_text(hjust = 1)) +
+  ggtitle("Prosper Loan Data | Borrower APR")
+
+pl.05 <- pl.04 + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+pl.05
+
+```
+
+Borrower's APR has a mean of 0.2188 or 21.88% more than the median (0.20976 or 20.97%). We also see loan APR more 30%, which is pretty high and tip borrower to delinquency.
+
+Next we look into Loan status .
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, fig.width=12, Univariate_Plots_LoanStatus}
+
+pl.01 <- ggplot(data = df,
+                aes(x = LoanStatus))
+
+pl.02 <- pl.01 + geom_histogram(stat = "count",
+                                color = 'black',
+                                fill = '#099DD9')
+pl.03 <- pl.02 + labs(x = "Loan Status",
+                      y = "Count") 
+
+pl.04 <- pl.03 + theme_update(plot.title = element_text(hjust = 1)) +
+  ggtitle("Prosper Loan Data | Borrower Loan Status")
+
+pl.05 <- pl.04 + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+ 
+
+pl.05
+
+```
+
+Frequencies of the loan that are "completed" and "current" are more. It would be intersting to see "Chargedoff" and "Defaulted" loan more closely in terms of dollar(s) amount and reasons behind it - may be features like "Employmentstatus", "DebtToIncomeRatio","LoanCurrentDaysDelinquent" may give us some clue.
+
+Next, it would be interesting to look at the borrower's debt to income ratio. Higher debt to income ratio is a recipe for delinquency. 
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, fig.width=12, Univariate_Plots_DebtToIncomeRatio}
+
+summary(df$DebtToIncomeRatio)
+
+pl.01 <- ggplot(data = df,
+                aes(x = DebtToIncomeRatio)) + xlim(0, 2)
+
+pl.02 <- pl.01 + geom_histogram(stat = "count",
+                                color = 'black',
+                                fill = '#099DD9')
+                                
+
+pl.03 <- pl.02 + labs(x = "Debt To Income Ratio",
+                      y = "Count") 
+
+pl.04 <- pl.03 + theme_update(plot.title = element_text(hjust = 1)) +
+  ggtitle("Prosper Loan Data | Borrower's Debt To Income Ratio")
+
+pl.05 <- pl.04 + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+ 
+
+pl.05
+
+
+```
+
+Average borrower has a debt to income ratio of 0.27 or 27% less than the typical 33%.
+
+
+Next, looking into Credit score.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, fig.width=12, fig.width=12, Univariate_Plots_CreditScoreRangeLower}
+
+pl.01 <- ggplot(data = df,
+                aes(x = CreditScoreRangeLower)) + xlim(100, 900) 
+
+pl.02 <- pl.01 + geom_histogram(stat = "count",
+                                color = 'black',
+                                fill = '#099DD9')
+                                
+pl.03 <- pl.02 + labs(x = "Borrower's credit score range lower",
+                      y = "Count") 
+
+pl.04 <- pl.03 + theme_update(plot.title = element_text(hjust = 1)) +
+  ggtitle("Prosper Loan Data | Borrower's Credit Score Range Lower")
+
+pl.05 <- pl.04 + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+ 
+
+pl.05
+
+```
+
+As credit score appear to be normally distributed - Proposer's overall risk is reasonable. 
+
+Plotting feature "LoanOriginationQuarter" could be impressive as US Housing buble burst resulting credit crisis and subsequent 2007-2009 recession. The market bottomed by June 2009.   
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, fig.width=12, Univariate_Plots_LoanOriginationQuarter}
+
+pl.01 <- ggplot(data = df,
+                aes(x = level_order))
+
+pl.02 <- pl.01 + geom_histogram(stat = "count",
+                                color = 'black',
+                                fill = '#099DD9')
+                                
+pl.03 <- pl.02 + labs(x = "Loan Origination Quater",
+                      y = "Count") 
+
+pl.04 <- pl.03 + theme_update(plot.title = element_text(hjust = 1)) +
+  ggtitle("Prosper Loan Data | Loan Origination Quater")
+
+pl.05 <- pl.04 + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+ 
+pl.05
+
+```
+
+Above frequency plot does show a sharp dip in loan origination starting "Q4 2008" and then slowly gaining momentum from "Q3 2009" onward. 
+
+ 
+
+
+Plotting Prosper ratings.  Prosper Rating is a proprietary rating system that allows potential investors evaluation of loan applicants. 
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, fig.width=12, Univariate_Plots_ProsperRating..Alpha.}
+
+pl.01 <- ggplot(data = df,
+                aes(x = order_Prosper_rating )) 
+
+pl.02 <- pl.01 + geom_histogram(stat = "count",
+                                color = 'black',
+                                fill = '#099DD9')
+                                
+pl.03 <- pl.02 + labs(x = "Loan Origination Quater",
+                      y = "Count") 
+
+pl.04 <- pl.03 + theme_update(plot.title = element_text(hjust = 1)) +
+  ggtitle("Prosper Loan Data | Loan Origination Quarter")
+ 
+pl.04
+
+```
+
+A large count of loan does not have Prosper Rating assigned to them. This may be because the proprietary rating system developed after the 2008-2009 credit crisis.  
+
+
+Let's see the distribution of amount delinquent at the time credit profile pulled.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, fig.width=12, Univariate_Plots_AmountDelinquent}
+ 
+pl.01 <- ggplot(data = df,
+                aes(x = AmountDelinquent )) + xlim(1, 2000) 
+
+pl.02 <- pl.01 + geom_histogram(binwidth = 100,
+                                color = 'black',
+                                fill = '#d82c2c')
+                                
+pl.03 <- pl.02 + labs(x = "Amount Delinquent",
+                      y = "Count") 
+
+pl.04 <- pl.03 + theme_update(plot.title = element_text(hjust = 1)) +
+  
+  ggtitle("Prosper Loan Data | Loan Origination Quarter") 
+
+pl.04
+
+```
+
+Above plot show that most of the borrowers have less than $1000 delinquent at the time credit was pulled.
+
+
+# Univariate Analysis
+
+Looking into the summary of some the variables like  "LoanOriginalAmount","MonthlyLoanPayment",
+```{r message=FALSE, warning=FALSE, echo=FALSE, Prosper_Summary}
+# Summary of select variables of Prosper dataset
+select_vars <- c("LoanOriginalAmount","MonthlyLoanPayment","BorrowerAPR","StatedMonthlyIncome","MonthlyLoanPayment","Investors")
+temp_df <- df[select_vars]
+summary(temp_df)
+
+```
+ 
+### What is the structure of your dataset?
+
+The structure of Prosper Dataset has numeric and factor variables. Prosper Dataset has total 113937 observations of 81 variables.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, Prosper_Structure}
+# Looking into the structure of Prosper dataset
+str(df)
+```
+ 
+### What is/are the main feature(s) of interest in your dataset?
+I intend to understand the reasons behind borrower delinquency and Prosper/ Investor response to credit lending practices.
+
+### What other features in the dataset do you think will help support your \
+investigation into your feature(s) of interest?
+
+My focus is on the following features -  "LoanOriginalAmount","ListingCategory..name","EmploymentStatus", "IncomeRange","BorrowerAPR","LoanStatus","DebtToIncomeRatio","CreditScoreRangeLower","CreditScoreRangeUpper","LoanOriginationQuarter", and "ProsperRating..Alpha."
+
+### Did you create any new variables from existing variables in the dataset?
+I did create two variables namely "ListingCategory_name"  and  "level_order"
+
+### Of the features you investigated, were there any unusual distributions? \
+Did you perform any operations on the data to tidy, adjust, or change the form \
+of the data? If so, why did you do this?
+
+I did  re-order Loan Origination Quarter  to plot histogram. 
+
+# Bivariate Plots Section
+
+Note: https://www.prosper.com/plp/general-prosper_score/
+ APRs through Prosper range from 6.95% (AA) to 35.99% (HR) for first-time borrowers, with the lowest rates for the most creditworthy borrowers.
+
+It looks like majority of loans given upto 2008-2009 does not show proper rating bute after "Q2 2009" most of the loans are of "AA", "A" or "B" i.e. loan with low percentage. 
+
+
+After loan credit crises due to the housing bubble,  minimum credit score was raised.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, fig.width=12, Bivariate_Plots_Origination_Quater_Credit_Score}
+
+summary(df$CreditScoreRangeLower)
+
+
+pl.01 <- ggplot(data = df,
+                aes(x = level_order,
+                    y = CreditScoreRangeLower))
+
+pl.02 <- pl.01 + geom_boxplot(outlier.shape = NA )
+                                
+pl.03 <- pl.02 + labs(x = "Loan Origination Quater",
+                      y = "Credit Score Range Lower") 
+
+pl.04 <- pl.03 + theme_update(plot.title = element_text(hjust = 1)) +
+  ggtitle("Prosper Loan Data | Loan Origination Quater")
+
+pl.05 <- pl.04 + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+ 
+
+pl.05
+
+```
+
+After loan credit crises due to the housing bubble, there is not only increase in minimum credit score but the implementation of the Prosper Rating system to help investors buy the loan with risk awareness.
+
+
+Let's also look into Prosper rating versus BorrowerAPR.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, fig.width=12, Bivariate_Plots_ProsperRating..Alpha_BorrowerAPR}
+ 
+prosperRating_Alpha <- factor(df$ProsperRating..Alpha., levels = c("AA","A","B","C","D","E","HR",""))
+
+
+pl.01 <- ggplot(data = df,
+                aes(x = prosperRating_Alpha,
+                    y = BorrowerAPR))
+
+pl.02 <- pl.01 + geom_boxplot(aes(fill = prosperRating_Alpha),
+                              outlier.shape = NA)
+                                
+pl.03 <- pl.02 + labs(x = "Loan Origination Quater",
+                      y = "Borrower APR") 
+
+pl.04 <- pl.03 + theme_update(plot.title = element_text(hjust = 1)) +
+  ggtitle("Prosper Loan Data | Loan Origination Quarter Vs Borrower APR")
+ 
+
+pl.04
+
+```
+
+The plot shows that as rating go lower borrower's  APR increases. That's normal. Outliers are removed.
+
+ 
+
+```{r}
+summary(df$Investors)
+```
+
+
+```{r message=FALSE, warning=FALSE,  echo=FALSE, fig.width=12, Bivariate_Plots_group_by_rating}
+ 
+df.df_cu_Investors <- cut(na.omit(df$Investors), c(1, 200, 300, 400, 800, 1200 ))
+
+pl.01 <- ggplot(data = df,
+                aes(x = order_Prosper_rating,
+                    y = LoanOriginalAmount))
+
+pl.02 <- pl.01 + geom_boxplot(aes(fill = df.df_cu_Investors),
+                              outlier.shape = NA)
+                                
+pl.03 <- pl.02 + labs(x = "Prosper Rating",
+                      y = "Loan Original Amount") 
+
+pl.04 <- pl.03 + theme_update(plot.title = element_text(hjust = 1)) +
+  ggtitle("Prosper Loan Data | Prosper Rating vs Loan amount Mean") + 
+  
+  scale_y_log10()
+
+
+pl.04
+
+```
+
+We see a trend of investors investing in higher loan dollars per Prosper rating system. Most of the investors are investing in Prosper rating "B" and "C" category  - which appears driver purely by coupon yield.  
+
+
+Lets group borrower by income range and look for loan amount mean. 
+
+```{r message=FALSE, warning=FALSE,  echo=FALSE, fig.width=12, Bivariate_Plots_group_by_incomeRange}
+
+# ordering the Income range
+level_order_IncomeRange <- factor(df$IncomeRange, level = c("$0","$1-24,999","$25,000-49,999","$50,000-74,999","$75,000-99,999","$100,000+","Not employed","Not displayed"))
+
+
+pl.01 <- ggplot(data = df,
+                aes(x = level_order_IncomeRange,
+                    y = LoanOriginalAmount))
+
+pl.02 <- pl.01 + geom_boxplot(aes(fill = df.df_cu_Investors),
+               outlier.shape = NA)
+                                
+pl.03 <- pl.02 + labs(x = "Income Range",
+                      y = "Loan Original Amount") 
+
+pl.04 <- pl.03 + theme_update(plot.title = element_text(hjust = 1)) +
+  ggtitle("Prosper Loan Data | Income Range vs Loan Original Amount")
+
+pl.05 <- pl.04 + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+pl.05
+
+```
+
+Higher the income range - higher the loan amount provided to the borrower. At the same time, we have to be careful about borrower's debt to income ratio (below 33% is considered safe). We are plotting next
+
+
+Lets look into level of order IncomeRange Versus Debt to income ratio
+ 
+```{r message=FALSE, warning=FALSE,  echo=FALSE, warning=FALSE, Bivariate_Plots_IncomeRange_DebtToIncomeRatio}
+
+# ordering the Income range
+level_order_IncomeRange <- factor(df$IncomeRange, level = c("$0","$1-24,999","$25,000-49,999","$50,000-74,999","$75,000-99,999","$100,000+","Not employed","Not displayed"))
+
+pl.01 <- ggplot(data = df,
+                aes(x = level_order_IncomeRange,
+                    y = DebtToIncomeRatio))
+
+pl.02 <- pl.01 + geom_point(alpha = 1/20,
+                            color = 'orange')  
+
+pl.03 <- pl.02 + labs(x = "level order IncomeRange",
+                      y = "Debt To Income Ratio") 
+
+pl.04 <- pl.03 + theme_update(plot.title = element_text(hjust = 1)) +
+  ggtitle("Prosper Loan Data | IncomeRange Vs Debt To IncomeRatio")
+
+pl.05 <- pl.04 + theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
+
+pl.05
+
+```
+
+So the plot shows that lower income range has higher "DebtToIncomeRatio"  compare to the higher income group thus lower-income group more risk to delinquency. 
+
+Comparing Prosper  rating Vs. Credit score, original loan amount, and amount delinquent.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, fig.width=12, fig.height=12, Bivariate_Plots_ProsperRating_creditAscore}
+  
+pl.01 <- ggplot(data = df,
+                aes(x = order_Prosper_rating,
+                    y = CreditScoreRangeLower)) + 
+
+  geom_boxplot(aes(fill = order_Prosper_rating),
+               outlier.shape = NA) +
+                                
+  labs(x = "Prosper credit rating",
+       y = "Credit Score Range Lower") +
+  
+  ggtitle("Prosper Loan Data | Credit rating Vs Credit Score Range lower")
+
+
+pl.02 <- ggplot(data = df,
+                aes(x = order_Prosper_rating,
+                    y = LoanOriginalAmount)) +
+
+  geom_boxplot(aes(fill = order_Prosper_rating),
+               outlier.shape = NA) +
+                                
+  labs(x = "Prosper credit rating",
+       y = "Loan Original Amount")
+
+
+pl.03 <- ggplot(data = df,
+                aes(x = order_Prosper_rating,
+                    y = AmountDelinquent)) + ylim(1,5000) +
+
+  geom_boxplot(aes(fill = order_Prosper_rating),
+               outlier.shape = NA) +
+                                
+  labs(x = "Prosper credit rating",
+       y = "Amount Delinquent")
+
+
+grid.arrange(pl.01, pl.02, pl.03, ncol = 1)
+
+```
+
+Most of the delinquent dollars are less than $1000 of the borrowed original $10000(mean) is mainly concentrated towards "HR"" Prosper rating and not so bad lower credit range.   
+
+
+
+Here is some correlation matrix of selected  features
+```{r message=FALSE, warning=FALSE, echo=FALSE, Bivariate_Plots_corelation}
+
+df_for_corr <- df[, c("BorrowerAPR",
+                      "CreditScoreRangeLower",
+                      "CurrentDelinquencies",
+                      "AmountDelinquent",
+                      "DebtToIncomeRatio",
+                      "StatedMonthlyIncome",
+                      "LoanOriginalAmount",
+                      "MonthlyLoanPayment",
+                      "Investors")]
+
+ggcorr(df_for_corr,
+       label = TRUE,
+       label_size = 3,
+       hjust = 0.8,
+       size = 2.5,
+       color = "black",
+       layout.exp = 2)
+
+```
+
+There is a strong correlation between "LoanOriginalAmount" and "MonthlyLoanPayment."
+
+
+```{r message=FALSE, warning=FALSE, echo=FALSE,fig.width=12, fig.height=12, Bivariate_Plots_LoanOriAmt_MonthLoanPay}
+
+pl.01 <- ggplot(aes(x = LoanOriginalAmount,
+                    y = MonthlyLoanPayment),
+                data = df) 
+
+pl.02 <- pl.01 + geom_point(alpha = 0.05,
+                            position = position_jitter())
+
+pl.03 <- pl.02 + xlim(0, quantile(df$LoanOriginalAmount, 0.95))
+
+pl.04 <- pl.03 + ylim(0, quantile(df$MonthlyLoanPayment, 0.95))
+
+pl.05 <- pl.04 + geom_smooth(method = 'lm', color = 'red')
+
+pl.06 <- pl.05 + labs(x = "Loan Original Amount",
+                      y = "Monthly Loan Payment" ) 
+
+pl.07 <- pl.06 + theme_update(plot.title = element_text(hjust = 1)) +
+  ggtitle("Prosper Loan Data | Income Verifiable Vs Monthly Loan Payment")
+ 
+
+pl.07
+
+cor.test(df$LoanOriginalAmount, df$MonthlyLoanPayment)
+
+```
+
+As the loan amount increases so is the monthly payment - that's obvious.Corelation is quite strong.
+
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, Bivariate_Plots_groupby_LoanOriginalAmount}
+
+df.df_by_LoanOriginalAmount <- df %>% 
+  group_by(LoanOriginalAmount) %>%
+  summarize(mean_AmountDelinquent = mean(AmountDelinquent),
+            mean_BorrowerAPR = mean(BorrowerAPR),
+            mean_CreditScoreRangeLower = mean(CreditScoreRangeLower),
+            n=n())
+arrange(df.df_by_LoanOriginalAmount, LoanOriginalAmount)
+
+
+pl.01 <- ggplot(data = df.df_by_LoanOriginalAmount,
+       aes(x = LoanOriginalAmount,
+           y = mean_BorrowerAPR  ) )  + 
+  
+   stat_smooth(method = "lm",
+               color = 'red',
+               size = 2) +
+  
+  geom_point(fill=I("#5dba5e"), color=I("black"), shape=21) +
+  
+  labs(x = "Groupby(Loan Original Amount)",
+       y = "Mean Borrower APR") +
+    
+   theme_update(plot.title = element_text(hjust = 1)) +
+   ggtitle("Prosper Loan Data | Amount Delinquent Vs Borrower APR") +
+  
+  scale_x_log10()
+  
+pl.02 <- ggplot(data = df.df_by_LoanOriginalAmount,
+       aes(x = LoanOriginalAmount,
+           y = mean_CreditScoreRangeLower ) )  + 
+  
+   stat_smooth(method = "lm",
+               color = 'red',
+               size = 2) +
+  
+  geom_point(fill=I("#3f94a1"), color=I("black"), shape=21) +
+  
+  labs(x = "Groupby(Loan Original Amount)",
+       y = "Mean Credit Score Range Lower") +
+    
+   theme_update(plot.title = element_text(hjust = 1)) +
+   ggtitle("Prosper Loan Data | Amount Delinquent Vs Borrower APR") +
+  
+  scale_x_log10()
+
+grid.arrange(pl.01,pl.02,  ncol=1)
+
+
+cor.test(df.df_by_LoanOriginalAmount$LoanOriginalAmount, df.df_by_LoanOriginalAmount$mean_BorrowerAPR)
+
+cor.test(df.df_by_LoanOriginalAmount$LoanOriginalAmount, df.df_by_LoanOriginalAmount$mean_CreditScoreRangeLower)
+
+```
+
+The above plot shows that there is a negative correlation(-0.3513449) between "Groupby(Loan Original Amount)" and "Mean Borrower APR." As "Groupby(Loan Original Amount)"  increases there is a decrease in "Mean Borrower APR."
+
+The above plot shows that there is a positive correlation(0.439252) between "Groupby(Loan Original Amount)" and "Mean Credit Score Range Lower." As "Groupby(Loan Original Amount)"  increases there is an increase in "Mean Credit Score Range Lower."
+ 
+
+
+# Bivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the \
+investigation. How did the feature(s) of interest vary with other features in \
+the dataset?
+
+After loan credit crises due to the housing bubble, there is not only increase in minimum credit score but the implementation of the Prosper Rating system to help investors buy the loan with risk awareness.
+
+Better quality of loan after "Q2 2009". 
+
+Investors investing in higher loan dollars for "AA", "A" ratings. 
+
+Higher the income range higher loan amount. But we have to watch out for  borrower's debt to income ratio (preferably below 33%)
+
+Lower income range borrower has higher "DebtToIncomeRatio"  compare to the higher income group thus lower-income group more risk to delinquency. 
+Prosper ratings are inversely proportional to borrower's APR. 
+
+There is a negative correlation(-0.3513449) between "Groupby(Loan Original Amount)" and "Mean Borrower APR." As "Groupby(Loan Original Amount)"  increases there is a decrease in "Mean Borrower APR."
+
+There is a positive correlation(0.439252) between "Groupby(Loan Original Amount)" and "Mean Credit Score Range Lower." As "Groupby(Loan Original Amount)"  increases there is an increase in "Mean Credit Score Range Lower."
+
+
+### Did you observe any interesting relationships between the other features \
+(not the main feature(s) of interest)?
+Most of the delinquent dollars are less than $1000 of the borrowed original $10000(mean) is mainly concentrated towards poor Prosper rating and not so bad lower credit range or upper credit range.   
+
+### What was the strongest relationship you found?
+
+There is a strong relationship between Prosper rating and Borrower's APR.
+
+# Multivariate Plots Section
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, fig.height= 15, fig.width=15, multivariate_Plots_AmountDelinquent_BorrowerAPR}
+
+pl.01 <- ggplot(data = my_df_01,
+       aes(x = AmountDelinquent,
+           y = BorrowerAPR, color = order_Prosper_rating_reg))  + 
+  xlim(1,700) +
+  
+  geom_point(alpha = 0.5,
+             size = 3,
+             position = 'jitter') +
+  
+  facet_wrap(~Term,ncol = 1) +
+  
+  scale_color_brewer(type = 'div',
+                     palette = "RdYlBu",
+                     guide = guide_legend(title = 'Prosper Ratings')) +
+                     
+  
+  labs(x = "Amount Delinquent",
+       y = "Borrower APR") +
+    
+  theme_update(plot.title = element_text(hjust = 1)) +
+  
+  ggtitle("Prosper Loan Data | Amount Delinquent Vs Borrower APR")  
+  
+  
+  
+pl.01
+ 
+``` 
+ 
+Most of the loan issued fall under 36-months Term. There are excess of loans with  Prosper rating of "HR", "E" and "D" and increasing APR. The quantity of loans debt issued for 12 months is quite less in comparison to 36 and 60 months. There appears to be a fair distribution of borrowers   " Amount Delinquent "  at the time credit was pulled, and it may be because most of the borrowers are trying to consolidate debt.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, fig.height= 15, fig.width=15, multivariate_Plots_AmountDelinquent_LoanCurrentDaysDelinquent}
+
+ 
+pl.01 <- ggplot(data = my_df_01,
+       aes(x = AmountDelinquent,
+           y = LoanCurrentDaysDelinquent, color = order_Prosper_rating_reg))  + 
+  
+  scale_x_continuous(trans = log10_trans(),
+                     limits = c(10,700),
+                     breaks = c(10, 100, 200, 300, 400, 500, 600, 700 )) +
+  
+  scale_y_continuous(trans = log10_trans(),
+                     limits = c(10,1000),
+                     breaks = c(10, 100, 200, 1000 )) +
+  
+  geom_point(alpha = 0.5,
+             size = 3,
+             position = 'jitter') +
+  
+  geom_smooth(method = 'lm', color = 'red') +
+  
+  facet_wrap(~Term,ncol = 1) +
+  
+  # Applying divergent color encoding
+  scale_color_brewer(type = 'div',
+                     palette = "RdYlBu",
+                     guide = guide_legend(title = 'Prosper Ratings')) +
+                     
+  
+  labs(x = "Amount Delinquent",
+       y = "Loan Current Days Delinquent") +
+    
+  theme_update(plot.title = element_text(hjust = 1)) +
+  
+  ggtitle("Prosper Loan Data | Amount Delinquent Vs Loan Current Days Delinquent")  
+  
+pl.01
+
+``` 
+
+Most of the delinquent dollars between 200-700  have more than 200 days delinquent. Most of the delinquent data points are from Prosper rating "D", "E", and "HR" - which seems logical.  We do see some Prosper rated loan "A" in delinquency -  which raises doubt over faithfulness of the Prosper rating system.   
+
+
+Now looking into the relation between feature "Investors," "LoanOriginalAmount," and Prosper rating.Note: Entries where Prosper rating not listed are filtered.
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, fig.width=15,fig.height=15, multivariate_Plots_Investors_LoanOriginalAmount_ProsperRating}
+
+
+pl.01 <- ggplot(data = my_df_01,
+                aes(x = Investors,
+                    y = LoanOriginalAmount)) +
+  
+  geom_point(size = 2,
+             aes(color=order_Prosper_rating_reg)) +
+  
+  stat_smooth(method = "lm",
+              se = FALSE,
+              aes(color=order_Prosper_rating_reg,
+                  fill = order_Prosper_rating_reg)) +
+  
+  labs(x = "Investors",
+       y = "Loan Original Amount") +
+    
+  theme_update(plot.title = element_text(hjust = 1)) +
+  
+  ggtitle("Prosper Loan Data | Investors Vs Loan Original Amount")
+  
+
+pl.01
+  
+
+cor.test(my_df_01$Investors, my_df_01$LoanOriginalAmount)
+
+```
+
+The above plot shows that there is a positive correlation(0.3192348) between "Investors," and "LoanOriginalAmount." 
+
+Additionally, we see that there is a gradual increase in "Investors" count for "LoanOriginalAmount" for higher rated "AA" and "A" borrowers.  Poor rated have a lower count of "Investors". Now, this makes sense and Prosper rating were implemented after the Real Estate bubble burst - "Q3 2009".  
+
+
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, multivariate_Plots_prosperrating_EstimatedEffectiveYield}
+ 
+
+pl.01 <- ggplot(data = df,
+       aes(x = ProsperRating..Alpha.,
+           y = EstimatedEffectiveYield,
+           color = factor(Term)))  + 
+  
+  geom_point(alpha = 0.5,
+             size = 3,
+             position = 'jitter') +
+  
+  scale_color_brewer(type = 'div',
+                     palette = "Dark2",
+                     guide = guide_legend(title = 'Term')) +
+  
+  labs(x = "Prosper Rating",
+       y = "Estimated Effective Yield") +
+    
+   theme_update(plot.title = element_text(hjust = 1)) +
+   ggtitle("Prosper Loan Data | Amount Delinquent Vs Borrower APR")  
+  
+  
+pl.01
+ 
+```
+
+The above plot shows that most of the loans were for 36 months and the estimated effective yield is higher as the Prosper rating decreases i.e., "C", "D",  "E",  and "HR".   It appears that the lure of higher yield motivated the investors to invest in loans of the poor rating.  This is more the reflection of time before the credit crisis where robot signing was the norm leading to world-wide recession.   
+
+
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, fig.width=12, echo=FALSE, multivariate_Plots_LoanOriginationQuater}
+
+
+df.df_date <- mutate(df, new_LoanOriginationDate = as.Date(LoanOriginationDate,
+                                           format = "%Y-%m-%d"))
+
+df.df_date_year <-  mutate(df.df_date, new_year_LoanOriginationDate = year(df.df_date$new_LoanOriginationDate))
+
+
+
+pl.01 <- ggplot(data = df.df_date_year,
+                aes(x = order_Prosper_rating,
+                    y = LoanOriginalAmount))
+
+pl.02 <- pl.01 + geom_boxplot(aes(colour = factor(new_year_LoanOriginationDate)),
+                              outlier.shape = NA)  
+                                
+pl.03 <- pl.02 + labs(x = "Prosper Rating",
+                      y = "Loan original amount") 
+
+pl.04 <- pl.03 + theme_update(plot.title = element_text(hjust = 1)) +
+  ggtitle("Prosper Loan Data | Prosper Rating Vs Loan original amount")
+
+pl.05 <- pl.04 + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+ 
+
+pl.05
+
+```
+
+We see trend of better quality,Prosper rated "AA", loan after from year 2009. We do see some poor quality rated loan like  "D" and "E"  - which indicates investors affinity for higher yield. It would be interesting to see Prosper Dataset from the year 2014 onwards to know Investor sentiment towards yield when the federal interest rate is on the rise
+ 
+Let's look into the feature "Income Verifiable versus "Loan Original Amount."  
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, fig.width=10, multivariate_Plots_ProsperRating..Alpha_BorrowerAPR}
+ 
+pl.01 <- ggplot(data = df,
+                aes(x = IncomeVerifiable,
+                    y = LoanOriginalAmount))
+                
+
+pl.02 <- pl.01 + geom_boxplot(aes(fill = level_order),
+                              outlier.shape = NA)
+                                
+pl.03 <- pl.02 + labs(x = "Income Verifiable",
+                      y = "Loan Original Amount") 
+
+pl.04 <- pl.03 + theme_update(plot.title = element_text(hjust = 1)) +
+  
+  ggtitle("Prosper Loan Data | Income Verifiable Vs Loan Origination Amount")
+ 
+
+pl.04
+
+```
+
+It seems strange to know how Prosper rated borrowers if borrowers' income were not verified. Maybe credit score was used. The plot shows that the number of loans given to borrowers where income was verified is more in comparison to not. Also, there is a gradual increase in the size of the loan amount as income is checked and after "Q2 2008" as Proper rating were implemented. 
+
+
+
+# Linear model for predicting  "BorrowerAPR"
+
+lets create liner model m1 with 
+response variable: BorrowerAPR and 
+predictor variable: LoanOriginalAmount
+
+Additionally updating: 
+  model m1 by m2 by adding variable "ProsperRating..Alpha." ,
+  model m2 by m3 by adding variable "DebtToIncomeRatio",
+  model m3 by m4 by adding variable "Term" and 
+in the linear regression 
+
+```{r message=FALSE, warning=FALSE,}
+
+m1 = lm(BorrowerAPR ~ LoanOriginalAmount, data = df)
+m2 = update(m1, ~. + ProsperRating..Alpha.)
+m3 = update(m2, ~. + DebtToIncomeRatio)
+m4 = update(m3, ~. + factor(Term))
+
+mtable("Model 1" = m1,
+       "Model 2" = m2,
+       "Model 3" = m3,
+       "Model 4" = m4)
+        
+
+```
+
+From the model out we can interpret that with R-squared and adjusted R-squared equal 0.707 i.e 70.7 % and p-value = 0 it is a nice model.
+
+Also we can see that slope turn from negative to positive as Proper rating goes shift from A towards HR,  prediting higher Borrower APR.
+ 
+
+# Multivariate Analysis
+
+### Talk about some of the relationships you observed in this part of the \
+investigation. Were there features that strengthened each other in terms of \
+looking at your feature(s) of interest?
+
+As "Groupby(Loan Original Amount)"  increases there is a decrease in "Mean Borrower APR."  
+As "Groupby(Loan Original Amount)"  increases there is an increase in "Mean Credit Score Range Lower."
+ 
+Though small, it is visible that loan given with poor Prosper rating, i.e., "C", "D",  "E",  and "HR" tend to have delinquencies(though small amount) as borrower APR increases.  
+
+### Were there any interesting or surprising interactions between features?
+
+It appears that the lure of higher yield motivated the investors to invest in loans of the poor rating.  This is more to the reflection of time before the credit crisis where robot signing was the norm -  leading to recession. 
+ 
+
+### OPTIONAL: Did you create any models with your dataset? Discuss the \
+strengths and limitations of your model.
+
+I build a model with - 
+response variable: BorrowerAPR and 
+predictor variable: LoanOriginalAmount
+
+Additionally updating: 
+  model m1 by m2 by adding variable "ProsperRating..Alpha." ,
+  model m2 by m3 by adding variable "DebtToIncomeRatio",
+  model m3 by m4 by adding the variable "Term" and 
+in the linear regression 
+Though I got relatively high R-squared and adjusted R-squared value( equal to 0.707) - it does not necessarily indicate model is a  good fit.  We need to evaluate other model statistics to get a comprehensive insight.
+
+------
+
+# Final Plots and Summary
+ 
+
+### Plot One
+```{r message=FALSE, warning=FALSE, echo=FALSE, Plot_One}
+
+pl.01 <- ggplot(data = df,
+                aes(x = level_order))
+
+pl.02 <- pl.01 + geom_histogram(stat = "count",
+                                color = 'black',
+                                fill = '#099DD9')
+                                
+pl.03 <- pl.02 + labs(x = "Loan Origination Quater",
+                      y = "Count") 
+
+pl.04 <- pl.03 + theme_update(plot.title = element_text(hjust = 1)) +
+  ggtitle("Prosper Loan Data | Loan Origination Quater")
+
+pl.05 <- pl.04 + theme(axis.text.x = element_text(angle = 90, hjust = 1))
+ 
+
+pl.05
+
+```
+
+### Description One
+I have chosen this plot because it shows a vivid dip starting quater "Q2 2008".  Well, Bear Sterns collapsed in March 2008 and set the stage for worst debt crisis since the Great Depression.  The Prosper dataset has reflections of those times -  the crash of the real estate bubble and the collapse of commercial credit from the last recession.
+
+Additinally,(https://www.sec.gov/litigation/admin/2008/33-8984.pdfhttps://www.sec.gov/litigation/admin/2008/33-8984.pdf) on November 24, 2008, the SEC found Prosper to be in violation of the Securities Act of 1933. As a result of these findings, the SEC imposed a cease and desist order on Prosper ... In July 2009, Prosper reopened their website for lending ("investing") and borrowing after having obtained SEC registration for its loans ("notes"). After the relaunch, bidding on loans was restricted to residents of 28 U.S. states and the District of Columbia. Borrowers may reside in any of 47 states, with residents of three states (Iowa, Maine, and North Dakota) not permitted to borrow through Prosper.
+
+
+Resulting,   government  introduced regulations (https://en.wikipedia.org/wiki/Regulatory_responses_to_the_subprime_crisis) to better manage risk. Prosper introduced the rating system to help the investor invest prudently. Thus the plot show after "Q3 2009"  a gradual increase in loan origination with better risk management in place. As time passes humans forget - regulations are rolled back(https://www.nytimes.com/2018/01/01/us/politics/trump-businesses-regulation-economic-growth.html) - and the stage is set for next recession.  
+
+### Plot Two
+```{r message=FALSE, warning=FALSE, echo=FALSE, Plot_Two}
+df.df_by_LoanOriginalAmount <- df %>% 
+  group_by(LoanOriginalAmount) %>%
+  summarize(mean_AmountDelinquent = mean(AmountDelinquent),
+            mean_BorrowerAPR = mean(BorrowerAPR),
+            mean_CreditScoreRangeLower = mean(CreditScoreRangeLower),
+            mean_DebtToIncomeRatio = mean(DebtToIncomeRatio),
+            n=n())
+arrange(df.df_by_LoanOriginalAmount, LoanOriginalAmount)
+
+
+```
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, fig.height=12, multivariate_Plots}
+ 
+
+pl.01 <- ggplot(data = df.df_by_LoanOriginalAmount,
+       aes(x = LoanOriginalAmount,
+           y = mean_BorrowerAPR  ) )  + 
+  
+   stat_smooth(method = "lm",
+               color = 'red',
+               size = 2) +
+  
+  geom_point(fill=I("#5dba5e"), color=I("black"), shape=21) +
+  
+  labs(x = "Groupby(Loan Original Amount)",
+       y = "Mean Borrower APR") +
+    
+   theme_update(plot.title = element_text(hjust = 1)) +
+   ggtitle("Prosper Loan Data | Amount Delinquent Vs Mean Borrower APR ") +
+  
+  scale_x_log10()
+  
+pl.02 <- ggplot(data = df.df_by_LoanOriginalAmount,
+       aes(x = LoanOriginalAmount,
+           y = mean_CreditScoreRangeLower ) )  + 
+  
+   stat_smooth(method = "lm",
+               color = 'red',
+               size = 2) +
+  
+  geom_point(fill=I("#3f94a1"), color=I("black"), shape=21) +
+  
+  labs(x = "Groupby(Loan Original Amount)",
+       y = "Mean Credit Score Range Lower") +
+    
+   theme_update(plot.title = element_text(hjust = 1)) +
+   ggtitle("Prosper Loan Data | Amount Delinquent Vs Mean Credit Score Range Lower") +
+  
+  scale_x_log10()
+
+pl.03 <- ggplot(data = df.df_by_LoanOriginalAmount,
+       aes(x = LoanOriginalAmount,
+           y = mean_DebtToIncomeRatio ) )  + scale_y_continuous(trans = log10_trans()) +
+  
+   stat_smooth(method = "lm",
+               color = 'red',
+               size = 2) +
+  
+  geom_point(fill=I("#3f94a1"), color=I("black"), shape=21) +
+  
+  labs(x = "Groupby(Loan Original Amount)",
+       y = "Mean Debt To Income Ratio") +
+    
+   theme_update(plot.title = element_text(hjust = 1)) +
+   ggtitle("Prosper Loan Data | Amount Delinquent Vs Mean Debt To Income Ratio") +
+  
+  scale_x_log10()
+
+
+grid.arrange(pl.01,pl.02,pl.03,  ncol=1)
+
+
+cor.test(df.df_by_LoanOriginalAmount$LoanOriginalAmount, df.df_by_LoanOriginalAmount$mean_BorrowerAPR)
+
+cor.test(df.df_by_LoanOriginalAmount$LoanOriginalAmount, df.df_by_LoanOriginalAmount$mean_CreditScoreRangeLower)
+
+cor.test(df.df_by_LoanOriginalAmount$LoanOriginalAmount, df.df_by_LoanOriginalAmount$mean_DebtToIncomeRatio)
+
+```
+
+### Description Two
+
+The above plot shows that there is a negative correlation(-0.3513449) between "Groupby(Loan Original Amount)" and "Mean Borrower APR." As "Groupby(Loan Original Amount)"  increases there is a decrease in "Mean Borrower APR."
+
+There is a positive correlation(0.439252) between "Groupby(Loan Original Amount)" and "Mean Credit Score Range Lower." As "Groupby(Loan Original Amount)"  increases there is an increase in "Mean Credit Score Range Lower."
+
+There is a negative correlation(-0.01317758 ) between "Groupby(Loan Original Amount)" and "Mean mean_DebtToIncomeRatio." - which is good trend. Borrowers with the higher range of lower credit score given lower ARP for increasing loan amount. This makes sense for  Borrowers having less than 33%( as a general rule ). As the debt-to-income ratio increases, borrowers ability to pay monthly debt payments become difficult and may lead to delinquency.  (Ref:https://www.consumerfinance.gov/ask-cfpb/what-is-a-debt-to-income-ratio-why-is-the-43-debt-to-income-ratio-important-en-1791/)
+
+
+### Plot Three
+
+```{r message=FALSE, warning=FALSE, echo=FALSE, fig.height=15, fig.width=17, Plot_Three}
+
+
+pl.01 <- ggplot(data = my_df_01,
+       aes(x = AmountDelinquent,
+           y = LoanCurrentDaysDelinquent, color = order_Prosper_rating_reg))  + 
+  
+  scale_x_continuous(trans = log10_trans(),
+                     limits = c(10,700),
+                     breaks = c(10, 100, 200, 300, 400, 500, 600, 700 )) +
+  
+  scale_y_continuous(trans = log10_trans(),
+                     limits = c(10,1000),
+                     breaks = c(10, 100, 200, 1000 )) +
+  
+  geom_point(alpha = 0.5,
+             size = 3,
+             position = 'jitter') +
+  
+  geom_smooth(method = 'lm', color = 'red') +
+  
+  facet_wrap(~Term,ncol = 1) +
+  
+  scale_color_brewer(type = 'seq',
+                     palette = "Dark2",
+                     guide = guide_legend(title = 'Prosper Ratings')) +
+                     
+  
+  labs(x = "Amount Delinquent",
+       y = "Loan Current Days Delinquent") +
+    
+  theme_update(plot.title = element_text(hjust = 1)) +
+  
+  ggtitle("Prosper Loan Data | Amount Delinquent Vs Loan Current Days Delinquent")  
+  
+pl.01
+
+```
+
+### Description Three
+Most of the delinquent dollars from  $200-$700  have more than 200 days delinquencies. Most of the delinquent data points are from Prosper rating "D", "E", and "HR" - which seems logical.  We do see some Prosper rated loan "A" in delinquency -  which raises doubt over faithfulness of the Prosper rating system.   
+Not sure why 36-months Term is more popular than 12 months or 60 months - Maybe it is a sweet spot where ARP and monthly payment are just appropriate. 
+
+------
+
+# Reflection
+ 
+My goal was to understand why debt delinquency happens and what can be done to reduce it.
+Prosper dataset has 113937 observations of 81 variables. I struggled in choosing the right features from this huge dataset, and it took a lot of time.  
+
+At times I used conditional means(library  -  dpyr )   for analysis and plotting. 
+
+I would prefer to analyze Proper dataset up to the year - 2018 to better understand how their rating system is helping investors to make the prudent debt investment. Prosper loans are unsecured - a high APR range ( 6.95% - 35.99% ) and poor Maximum debt-to-income ratio: 50% (excluding mortgage) is quite risky for the investor as well as borrowers(Ref: https://www.nerdwallet.com/blog/loans/prosper-personal-loans-review/)
+
+As of August-2018, With low unemployment, 3.9% (ref:https://tradingeconomics.com/united-states/unemployment-rate) and decresing government  regulations it will interesting see how Prosper has morphed its business model - latest dataset analysis can provide interesting insights. 
+
+
+ 
+
+# Refrence:
+
+https://stackoverflow.com/questions/1330989/rotating-and-spacing-axis-labels-in-ggplot2
+
+https://en.wikipedia.org/wiki/Regulatory_responses_to_the_subprime_crisis
+
+https://www.consumerfinance.gov/ask-cfpb/what-is-a-debt-to-income-ratio-why-is-the-43-debt-to-income-ratio-important-en-1791/
+
+https://stackoverflow.com/questions/21801950/remove-legend-entries-for-some-factors-levels
+
+https://stackoverflow.com/questions/22466479/correct-usage-of-scale-fill-manual-to-create-multi-colored-histogram-bars-in-g
+
+
+
